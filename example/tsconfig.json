@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "bayut-video-compressor": ["../src/index"],
+      "bayut-video-compressor/*": ["../src/*"]
+    }
+  }
+}

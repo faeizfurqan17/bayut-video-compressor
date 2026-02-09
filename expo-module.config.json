@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["BayutVideoCompressorModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.bayutvideocompressor.BayutVideoCompressorModule"]
+  }
+}
