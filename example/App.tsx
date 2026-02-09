@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { compress, cancel, getMetadata } from 'bayut-video-compressor';
 import type { CompressOptions } from 'bayut-video-compressor';
 
@@ -33,6 +34,11 @@ export default function App() {
   const [selectedSpeed, setSelectedSpeed] = useState<'ultrafast' | 'fast' | 'balanced'>('ultrafast');
   const [selectedMaxSize, setSelectedMaxSize] = useState(1080);
   const cancellationId = useRef<string | null>(null);
+  const [compressedUri, setCompressedUri] = useState<string | null>(null);
+
+  const player = useVideoPlayer(compressedUri ?? '', (p) => {
+    p.loop = true;
+  });
 
   const pickVideo = async () => {
     try {
@@ -52,6 +58,7 @@ export default function App() {
         setSelectedVideo(uri);
         setResult(null);
         setError(null);
+        setCompressedUri(null);
         setProgress(0);
 
         // Get metadata
@@ -112,6 +119,7 @@ export default function App() {
         duration: `${elapsed}s`,
         outputUri,
       });
+      setCompressedUri(outputUri);
     } catch (e: any) {
       setError(e.message || 'Compression failed');
     } finally {
@@ -266,6 +274,29 @@ export default function App() {
                 <Text style={styles.resultValue}>{selectedSpeed}</Text>
               </View>
             </View>
+          </View>
+        )}
+
+        {/* Compressed Video Preview */}
+        {compressedUri && result && (
+          <View style={styles.videoCard}>
+            <Text style={styles.videoCardTitle}>🎥 Compressed Video</Text>
+            <VideoView
+              player={player}
+              style={styles.videoPlayer}
+              allowsFullscreen
+              allowsPictureInPicture
+            />
+            <TouchableOpacity
+              style={styles.playButton}
+              onPress={() => {
+                if (player) {
+                  player.play();
+                }
+              }}
+            >
+              <Text style={styles.playButtonText}>▶ Play</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -480,6 +511,37 @@ const styles = StyleSheet.create({
   },
   resultHighlight: {
     color: '#30D158',
+  },
+  videoCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  videoCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  videoPlayer: {
+    width: '100%',
+    height: 300,
+    borderRadius: 12,
+    backgroundColor: '#000',
+  },
+  playButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    marginTop: 12,
+  },
+  playButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   errorCard: {
     backgroundColor: '#2E1C1C',
