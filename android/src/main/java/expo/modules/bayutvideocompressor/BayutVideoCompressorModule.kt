@@ -1,50 +1,156 @@
 package expo.modules.bayutvideocompressor
 
+import android.net.Uri
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.net.URL
+import kotlinx.coroutines.*
+import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 class BayutVideoCompressorModule : Module() {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
-  override fun definition() = ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('BayutVideoCompressor')` in JavaScript.
-    Name("BayutVideoCompressor")
+    private val activeCompressions = ConcurrentHashMap<String, AtomicBoolean>()
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    // Defines constant property on the module.
-    Constant("PI") {
-      Math.PI
+    override fun definition() = ModuleDefinition {
+        Name("BayutVideoCompressor")
+
+        Events("onCompressProgress", "onBackgroundTaskExpired")
+
+        // MARK: - Compress
+
+        AsyncFunction("compress") { fileUrl: String, options: Map<String, Any?> ->
+            val uuid = java.util.UUID.randomUUID().toString()
+            val cancelled = AtomicBoolean(false)
+            activeCompressions[uuid] = cancelled
+
+            try {
+                val context = appContext.reactContext
+                    ?: throw IllegalStateException("React context not available")
+
+                val config = VideoCompressor.CompressConfig(
+                    maxSize = (options["maxSize"] as? Number)?.toInt() ?: 1080,
+                    bitrate = (options["bitrate"] as? Number)?.toInt() ?: 0,
+                    codec = options["codec"] as? String ?: "h264",
+                    speed = options["speed"] as? String ?: "ultrafast",
+                )
+
+                val minimumFileSize = (options["minimumFileSizeForCompress"] as? Number)?.toDouble() ?: 0.0
+
+                // Resolve input URI
+                val inputUri = Uri.parse(fileUrl)
+
+                // Check minimum file size
+                if (minimumFileSize > 0) {
+                    val fileSize = getFileSizeFromUri(inputUri)
+                    if (fileSize <= minimumFileSize * 1024 * 1024) {
+                        return@AsyncFunction fileUrl
+                    }
+                }
+
+                // Create temp output file
+                val outputFile = File(context.cacheDir, "compressed_${uuid}.mp4")
+
+                val compressor = VideoCompressor(context)
+                val result = compressor.compress(
+                    inputUri = inputUri,
+                    outputFile = outputFile,
+                    config = config,
+                    cancelled = cancelled,
+                    listener = object : VideoCompressor.ProgressListener {
+                        override fun onProgress(progress: Float) {
+                            sendEvent("onCompressProgress", mapOf(
+                                "progress" to progress,
+                                "uuid" to uuid
+                            ))
+                        }
+                    }
+                )
+
+                activeCompressions.remove(uuid)
+                "file://$result"
+            } catch (e: InterruptedException) {
+                activeCompressions.remove(uuid)
+                throw e
+            } catch (e: Exception) {
+                activeCompressions.remove(uuid)
+                throw e
+            }
+        }
+
+        // MARK: - Cancel
+
+        Function("cancel") { uuid: String ->
+            activeCompressions[uuid]?.set(true)
+        }
+
+        // MARK: - Get Metadata
+
+        AsyncFunction("getMetadata") { fileUrl: String ->
+            val context = appContext.reactContext
+                ?: throw IllegalStateException("React context not available")
+
+            val retriever = android.media.MediaMetadataRetriever()
+            val uri = Uri.parse(fileUrl)
+
+            try {
+                // file:// URIs need setDataSource(path), content:// URIs need setDataSource(context, uri)
+                if (uri.scheme == "file") {
+                    val path = uri.path ?: throw IllegalArgumentException("Invalid file URI: $fileUrl")
+                    retriever.setDataSource(path)
+                } else {
+                    retriever.setDataSource(context, uri)
+                }
+
+                val width = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+                val height = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+                val duration = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                val bitrate = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull() ?: 0
+
+                val fileSize = getFileSizeFromUri(uri)
+
+                mapOf(
+                    "width" to width,
+                    "height" to height,
+                    "duration" to (duration / 1000.0),
+                    "size" to fileSize,
+                    "bitrate" to bitrate,
+                    "extension" to "mp4"
+                )
+            } finally {
+                retriever.release()
+            }
+        }
+
+        // MARK: - Background Task (Android is more lenient, but we support the API)
+
+        AsyncFunction("activateBackgroundTask") {
+            "android-background-task"
+        }
+
+        AsyncFunction("deactivateBackgroundTask") {
+            // No-op on Android
+        }
     }
 
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
+    private fun getFileSizeFromUri(uri: Uri): Long {
+        if (uri.scheme == "file") {
+            val path = uri.path ?: return 0
+            return try {
+                File(path).length()
+            } catch (e: Exception) {
+                0
+            }
+        }
 
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      "Hello world! 👋"
+        val context = appContext.reactContext ?: return 0
+        return try {
+            val fd = context.contentResolver.openFileDescriptor(uri, "r")
+            val size = fd?.statSize ?: 0
+            fd?.close()
+            size
+        } catch (e: Exception) {
+            0
+        }
     }
-
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { value: String ->
-      // Send an event to JavaScript.
-      sendEvent("onChange", mapOf(
-        "value" to value
-      ))
-    }
-
-    // Enables the module to be used as a native view. Definition components that are accepted as part of
-    // the view definition: Prop, Events.
-    View(BayutVideoCompressorView::class) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { view: BayutVideoCompressorView, url: URL ->
-        view.webView.loadUrl(url.toString())
-      }
-      // Defines an event that the view can send to JavaScript.
-      Events("onLoad")
-    }
-  }
 }

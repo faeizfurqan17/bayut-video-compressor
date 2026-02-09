@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "expo.modules.bayutvideocompressor.example"
+      "bundleIdentifier": "expo.modules.bayutvideocompressor.example",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow access to pick videos for compression testing"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,10 +26,14 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "expo.modules.bayutvideocompressor.example"
+      "package": "expo.modules.bayutvideocompressor.example",
+      "permissions": ["android.permission.READ_MEDIA_VIDEO"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-video"
+    ]
   }
 }

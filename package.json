@@ -1,7 +1,7 @@
 {
   "name": "bayut-video-compressor",
   "version": "0.1.0",
-  "description": "My new module",
+  "description": "Hardware-accelerated video compression for React Native with HEVC support",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {
@@ -13,13 +13,19 @@
     "prepublishOnly": "expo-module prepublishOnly",
     "expo-module": "expo-module",
     "open:ios": "xed example/ios",
-    "open:android": "open -a \"Android Studio\" example/android"
+    "open:android": "open -a \"Android Studio\" example/android",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "keywords": [
     "react-native",
     "expo",
-    "bayut-video-compressor",
-    "BayutVideoCompressor"
+    "video-compression",
+    "hardware-acceleration",
+    "mediacodec",
+    "videotoolbox",
+    "hevc",
+    "h264"
   ],
   "repository": "https://github.com/Faeiz-Furqan/bayut-video-compressor",
   "bugs": {

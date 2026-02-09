@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "expo": "~54.0.33",
+    "expo-image-picker": "~17.0.10",
+    "expo-video": "~3.0.15",
     "react": "19.1.0",
     "react-native": "0.81.5"
   },
