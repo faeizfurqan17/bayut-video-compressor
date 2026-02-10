@@ -27,13 +27,13 @@
     "hevc",
     "h264"
   ],
-  "repository": "https://github.com/Faeiz-Furqan/bayut-video-compressor",
+  "repository": "https://github.com/faeizfurqan17/bayut-video-compressor",
   "bugs": {
-    "url": "https://github.com/Faeiz-Furqan/bayut-video-compressor/issues"
+    "url": "https://github.com/faeizfurqan17/bayut-video-compressor/issues"
   },
-  "author": "Faeiz Furqan <mfaeiz.furqan@gmail.com> (https://github.com/Faeiz-Furqan)",
+  "author": "Faeiz Furqan <mfaeiz.furqan@gmail.com> (https://github.com/faeizfurqan17)",
   "license": "MIT",
-  "homepage": "https://github.com/Faeiz-Furqan/bayut-video-compressor#readme",
+  "homepage": "https://github.com/faeizfurqan17/bayut-video-compressor#readme",
   "dependencies": {},
   "devDependencies": {
     "@types/react": "~19.1.0",
