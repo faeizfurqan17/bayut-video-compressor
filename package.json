@@ -1,6 +1,6 @@
 {
   "name": "expo-image-and-video-compressor",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "Hardware-accelerated image and video compression for React Native / Expo with HEVC support",
   "main": "build/index.js",
   "types": "build/index.d.ts",
