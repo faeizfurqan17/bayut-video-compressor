@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { compress, cancel, getMetadata } from 'bayut-video-compressor';
-import type { CompressOptions } from 'bayut-video-compressor';
+import { compress, cancel, getMetadata } from 'expo-image-and-video-compressor';
+import type { CompressOptions } from 'expo-image-and-video-compressor';
 
 type CompressionResult = {
   inputSize: string;

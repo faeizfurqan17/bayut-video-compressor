@@ -16,7 +16,7 @@ const EventEmitter = new NativeEventEmitter(BayutVideoCompressorModule as any);
  *
  * @example
  * ```ts
- * import { compress } from 'bayut-video-compressor';
+ * import { compress } from 'expo-image-and-video-compressor';
  *
  * const result = await compress(videoUri, {
  *   bitrate: 2_500_000,

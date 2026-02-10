@@ -1,7 +1,7 @@
 {
-  "name": "bayut-video-compressor",
+  "name": "expo-image-and-video-compressor",
   "version": "0.1.3",
-  "description": "Hardware-accelerated video compression for React Native with HEVC support",
+  "description": "Hardware-accelerated image and video compression for React Native / Expo with HEVC support",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {
@@ -21,6 +21,7 @@
     "react-native",
     "expo",
     "video-compression",
+    "image-compression",
     "hardware-acceleration",
     "mediacodec",
     "videotoolbox",

@@ -1,35 +1,81 @@
-# bayut-video-compressor
+# expo-image-and-video-compressor
 
-Hardware-accelerated video compression for React Native with HEVC support
+⚡ Hardware-accelerated image & video compression for React Native / Expo.
 
-# API documentation
+- **Video**: H.264 & HEVC encoding via MediaCodec (Android) and VideoToolbox (iOS)
+- **Blazing fast**: GL pipeline with frame dropping, hardware encoder at max operating rate
+- **Tiny API**: One function call — `compress(uri, options)`
 
-- [Documentation for the latest stable release](https://docs.expo.dev/versions/latest/sdk/bayut-video-compressor/)
-- [Documentation for the main branch](https://docs.expo.dev/versions/unversioned/sdk/bayut-video-compressor/)
+## Installation
 
-# Installation in managed Expo projects
-
-For [managed](https://docs.expo.dev/archive/managed-vs-bare/) Expo projects, please follow the installation instructions in the [API documentation for the latest stable release](#api-documentation). If you follow the link and there is no documentation available then this library is not yet usable within managed projects &mdash; it is likely to be included in an upcoming Expo SDK release.
-
-# Installation in bare React Native projects
-
-For bare React Native projects, you must ensure that you have [installed and configured the `expo` package](https://docs.expo.dev/bare/installing-expo-modules/) before continuing.
-
-### Add the package to your npm dependencies
-
-```
-npm install bayut-video-compressor
+```bash
+npm install expo-image-and-video-compressor
+# or
+yarn add expo-image-and-video-compressor
 ```
 
-### Configure for Android
+> Requires Expo SDK 51+ with expo-modules-core. Works in both managed and bare workflows.
 
+## Quick Start
 
+```ts
+import { compress } from 'expo-image-and-video-compressor';
 
+// Compress a video
+const compressedUri = await compress(videoUri, {
+  bitrate: 2_500_000, // 2.5 Mbps
+  maxSize: 1080,       // max dimension
+  codec: 'h264',
+  speed: 'ultrafast',
+}, (progress) => {
+  console.log(`${Math.round(progress * 100)}%`);
+});
+```
 
-### Configure for iOS
+## API
 
-Run `npx pod-install` after installing the npm package.
+### `compress(fileUrl, options?, onProgress?)`
 
-# Contributing
+Compresses a video file with hardware acceleration.
 
-Contributions are very welcome! Please refer to guidelines described in the [contributing guide]( https://github.com/expo/expo#contributing).
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `bitrate` | `number` | auto | Target bitrate in bps |
+| `maxSize` | `number` | `1080` | Max width or height in pixels |
+| `codec` | `'h264' \| 'hevc'` | `'h264'` | Output codec |
+| `speed` | `'ultrafast' \| 'fast' \| 'medium'` | `'ultrafast'` | Encoding speed preset |
+| `minimumFileSizeForCompress` | `number` | `0` | Skip compression if file is smaller (bytes) |
+| `getCancellationId` | `(id: string) => void` | — | Receive a cancellation ID |
+
+**Returns**: `Promise<string>` — URI of the compressed file.
+
+### `cancel(uuid)`
+
+Cancel an ongoing compression using the ID from `getCancellationId`.
+
+### `getMetadata(fileUrl)`
+
+Get video metadata (duration, dimensions, bitrate, etc).
+
+### `activateBackgroundTask(onExpired?)`
+
+Keep compression running when the app is backgrounded (iOS).
+
+### `deactivateBackgroundTask()`
+
+End the background task.
+
+## Features
+
+- 🎥 **H.264 & HEVC** hardware encoding
+- 🚀 **Frame dropping** — automatically drops frames for high-fps sources (e.g. 52fps → 30fps)
+- 📐 **Auto-scaling** — respects aspect ratio with `maxSize`
+- 🔄 **Rotation handling** — preserves portrait/landscape orientation
+- 🎵 **Audio pass-through** — copies audio without re-encoding
+- 📊 **Progress tracking** — real-time compression progress
+- ❌ **Cancellation** — cancel compression mid-flight
+- 🔋 **Background support** — iOS background task support
+
+## License
+
+MIT
