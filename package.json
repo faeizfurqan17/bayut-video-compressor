@@ -1,6 +1,6 @@
 {
   "name": "bayut-video-compressor",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Hardware-accelerated video compression for React Native with HEVC support",
   "main": "build/index.js",
   "types": "build/index.d.ts",
