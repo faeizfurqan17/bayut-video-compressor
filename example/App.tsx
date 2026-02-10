@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { compress, cancel, getMetadata } from 'expo-image-and-video-compressor';
+import { compress, compressImage, cancel, getMetadata } from 'expo-image-and-video-compressor';
 import type { CompressOptions } from 'expo-image-and-video-compressor';
+import { Image } from 'react-native';
 
 type CompressionResult = {
   inputSize: string;
@@ -35,6 +36,12 @@ export default function App() {
   const [selectedMaxSize, setSelectedMaxSize] = useState(1080);
   const cancellationId = useRef<string | null>(null);
   const [compressedUri, setCompressedUri] = useState<string | null>(null);
+
+  // Image compression state
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imageCompressing, setImageCompressing] = useState(false);
+  const [imageResult, setImageResult] = useState<{ inputSize: string; outputSize: string; ratio: string; outputUri: string } | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const player = useVideoPlayer(compressedUri ?? '', (p) => {
     p.loop = true;
@@ -132,6 +139,65 @@ export default function App() {
   const cancelCompression = () => {
     if (cancellationId.current) {
       cancel(cancellationId.current);
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permResult.granted) {
+        Alert.alert('Permission needed', 'Please grant access to your photo library');
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+      });
+
+      if (!pickerResult.canceled && pickerResult.assets[0]) {
+        setSelectedImage(pickerResult.assets[0].uri);
+        setImageResult(null);
+        setImageError(null);
+      }
+    } catch (e: any) {
+      setImageError(`Pick failed: ${e.message}`);
+    }
+  };
+
+  const startImageCompression = async () => {
+    if (!selectedImage) return;
+    setImageCompressing(true);
+    setImageResult(null);
+    setImageError(null);
+
+    try {
+      const inputInfo = await fetch(selectedImage);
+      const inputBlob = await inputInfo.blob();
+      const inputSize = inputBlob.size;
+
+      const outputUri = await compressImage(selectedImage, {
+        maxWidth: 1080,
+        maxHeight: 1920,
+        quality: 0.8,
+      });
+
+      const outputInfo = await fetch(outputUri);
+      const outputBlob = await outputInfo.blob();
+      const outputSize = outputBlob.size;
+
+      const ratio = inputSize > 0 ? ((1 - outputSize / inputSize) * 100).toFixed(1) : '0';
+
+      setImageResult({
+        inputSize: formatBytes(inputSize),
+        outputSize: formatBytes(outputSize),
+        ratio: `${ratio}%`,
+        outputUri,
+      });
+    } catch (e: any) {
+      setImageError(e.message || 'Image compression failed');
+    } finally {
+      setImageCompressing(false);
     }
   };
 
@@ -305,6 +371,65 @@ export default function App() {
           <View style={styles.errorCard}>
             <Text style={styles.errorTitle}>❌ Error</Text>
             <Text style={styles.errorMessage}>{error}</Text>
+          </View>
+        )}
+
+        {/* ── Image Compression Section ── */}
+        <View style={{ height: 40, borderTopWidth: 1, borderTopColor: '#2C2C2E', marginTop: 20 }} />
+        <Text style={styles.title}>🖼️ Image Compressor</Text>
+        <Text style={styles.subtitle}>Resize & Quality Control</Text>
+
+        <TouchableOpacity style={styles.pickButton} onPress={pickImage} disabled={imageCompressing}>
+          <Text style={styles.pickButtonText}>
+            {selectedImage ? '🖼️ Change Image' : '🖼️ Pick Image'}
+          </Text>
+        </TouchableOpacity>
+
+        {selectedImage && (
+          <View style={[styles.metaCard, { alignItems: 'center' }]}>
+            <Image source={{ uri: selectedImage }} style={{ width: 200, height: 200, borderRadius: 12, marginBottom: 8 }} resizeMode="contain" />
+            <Text style={styles.metaLabel}>Selected Image</Text>
+          </View>
+        )}
+
+        {selectedImage && !imageCompressing && (
+          <TouchableOpacity style={styles.compressButton} onPress={startImageCompression}>
+            <Text style={styles.compressButtonText}>🚀 Compress Image</Text>
+          </TouchableOpacity>
+        )}
+
+        {imageCompressing && (
+          <View style={styles.progressCard}>
+            <Text style={styles.progressTitle}>Compressing image...</Text>
+            <ActivityIndicator style={{ marginTop: 8 }} color="#007AFF" />
+          </View>
+        )}
+
+        {imageResult && (
+          <View style={styles.resultCard}>
+            <Text style={styles.resultTitle}>✅ Image Compressed!</Text>
+            <View style={styles.resultRow}>
+              <View style={styles.resultItem}>
+                <Text style={styles.resultLabel}>Input</Text>
+                <Text style={styles.resultValue}>{imageResult.inputSize}</Text>
+              </View>
+              <View style={styles.resultItem}>
+                <Text style={styles.resultLabel}>Output</Text>
+                <Text style={styles.resultValue}>{imageResult.outputSize}</Text>
+              </View>
+              <View style={styles.resultItem}>
+                <Text style={styles.resultLabel}>Reduced</Text>
+                <Text style={[styles.resultValue, styles.resultHighlight]}>{imageResult.ratio}</Text>
+              </View>
+            </View>
+            <Image source={{ uri: imageResult.outputUri }} style={{ width: '100%', height: 250, borderRadius: 12, marginTop: 12 }} resizeMode="contain" />
+          </View>
+        )}
+
+        {imageError && (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorTitle}>❌ Error</Text>
+            <Text style={styles.errorMessage}>{imageError}</Text>
           </View>
         )}
 

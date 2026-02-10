@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import AVFoundation
 import VideoToolbox
+import MobileCoreServices
 
 public class BayutVideoCompressorModule: Module {
   private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
@@ -97,6 +98,77 @@ public class BayutVideoCompressorModule: Module {
         VTCompressionSessionInvalidate(session)
         self.activeSessions.removeValue(forKey: uuid)
       }
+    }
+
+    // MARK: - Image Compress
+
+    AsyncFunction("image_compress") { (value: String, options: [String: Any]) -> String in
+      let maxWidth = options["maxWidth"] as? Int ?? 1280
+      let maxHeight = options["maxHeight"] as? Int ?? 1280
+      let quality = options["quality"] as? Double ?? 0.8
+      let output = options["output"] as? String ?? "jpg"
+      let input = options["input"] as? String ?? "uri"
+
+      // 1. Load image
+      var image: UIImage?
+      if input == "base64" {
+        let cleanValue = value.replacingOccurrences(of: "^data:image/.*;(?:charset=.{3,5};)?base64,", with: "", options: .regularExpression)
+        if let data = Data(base64Encoded: cleanValue, options: .ignoreUnknownCharacters) {
+          image = UIImage(data: data)
+        }
+      } else {
+        let url = URL(string: value)!
+        let resolvedURL = self.resolveFileURL(url)
+        if let data = try? Data(contentsOf: resolvedURL) {
+          image = UIImage(data: data)
+        }
+      }
+
+      guard let loadedImage = image else {
+        throw CompressorError.invalidVideo("Failed to load image from: \(value)")
+      }
+
+      // 2. Fix orientation
+      let orientedImage = self.fixImageOrientation(loadedImage)
+
+      // 3. Resize
+      let resizedImage = self.resizeImage(orientedImage, maxWidth: maxWidth, maxHeight: maxHeight)
+
+      // 4. Compress
+      var imageData: Data
+      if output == "png" {
+        imageData = resizedImage.pngData()!
+      } else {
+        imageData = resizedImage.jpegData(compressionQuality: CGFloat(quality))!
+      }
+
+      // 5. Copy EXIF from source
+      if input == "uri" {
+        let sourceURL = URL(string: value)!
+        let resolvedURL = self.resolveFileURL(sourceURL)
+        imageData = self.copyExifInfo(from: resolvedURL.path, to: imageData, image: UIImage(data: imageData) ?? resizedImage, isPNG: output == "png")
+      }
+
+      // 6. Write to cache file
+      let ext = output == "png" ? "png" : "jpg"
+      let tempDir = FileManager.default.temporaryDirectory
+      let filename = ProcessInfo.processInfo.globallyUniqueString + "." + ext
+      let outputURL = tempDir.appendingPathComponent(filename)
+      try imageData.write(to: outputURL, options: .atomic)
+
+      // 7. Check if compressed is smaller
+      if input == "uri" {
+        let sourceURL = URL(string: value)!
+        let resolvedURL = self.resolveFileURL(sourceURL)
+        let sourceSize = self.getFileSizeBytes(url: resolvedURL)
+        let compressedSize = UInt64(imageData.count)
+        if compressedSize >= sourceSize {
+          try? FileManager.default.removeItem(at: outputURL)
+          return resolvedURL.absoluteString
+        }
+      }
+
+      return outputURL.absoluteString
     }
 
     // MARK: - Get Metadata
@@ -411,6 +483,131 @@ public class BayutVideoCompressorModule: Module {
     guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
           let size = attrs[.size] as? UInt64 else { return 0 }
     return size
+  }
+
+  // MARK: - Image Helpers
+
+  private func fixImageOrientation(_ image: UIImage) -> UIImage {
+    if image.imageOrientation == .up {
+      return image
+    }
+
+    var transform = CGAffineTransform.identity
+
+    switch image.imageOrientation {
+    case .down, .downMirrored:
+      transform = transform.translatedBy(x: image.size.width, y: image.size.height)
+      transform = transform.rotated(by: CGFloat.pi)
+    case .left, .leftMirrored:
+      transform = transform.translatedBy(x: image.size.width, y: 0)
+      transform = transform.rotated(by: CGFloat.pi / 2)
+    case .right, .rightMirrored:
+      transform = transform.translatedBy(x: 0, y: image.size.height)
+      transform = transform.rotated(by: -CGFloat.pi / 2)
+    default:
+      break
+    }
+
+    switch image.imageOrientation {
+    case .upMirrored, .downMirrored:
+      transform = transform.translatedBy(x: image.size.width, y: 0)
+      transform = transform.scaledBy(x: -1, y: 1)
+    case .leftMirrored, .rightMirrored:
+      transform = transform.translatedBy(x: image.size.height, y: 0)
+      transform = transform.scaledBy(x: -1, y: 1)
+    default:
+      break
+    }
+
+    if let cgImage = image.cgImage, let colorSpace = cgImage.colorSpace {
+      guard let context = CGContext(
+        data: nil,
+        width: Int(image.size.width),
+        height: Int(image.size.height),
+        bitsPerComponent: cgImage.bitsPerComponent,
+        bytesPerRow: 0,
+        space: colorSpace,
+        bitmapInfo: cgImage.bitmapInfo.rawValue
+      ) else {
+        return image
+      }
+
+      context.concatenate(transform)
+
+      switch image.imageOrientation {
+      case .left, .leftMirrored, .right, .rightMirrored:
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: image.size.height, height: image.size.width))
+      default:
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: image.size.width, height: image.size.height))
+      }
+
+      if let rotatedCGImage = context.makeImage() {
+        return UIImage(cgImage: rotatedCGImage)
+      }
+    }
+
+    return image
+  }
+
+  private func resizeImage(_ image: UIImage, maxWidth: Int, maxHeight: Int) -> UIImage {
+    let width = image.size.width
+    let height = image.size.height
+
+    // No resize needed
+    if width <= CGFloat(maxWidth) && height <= CGFloat(maxHeight) {
+      return image
+    }
+
+    let scale: CGFloat
+    if width > height {
+      scale = CGFloat(maxWidth) / width
+    } else {
+      scale = CGFloat(maxHeight) / height
+    }
+
+    let newWidth = width * scale
+    let newHeight = height * scale
+
+    let rect = CGRect(x: 0, y: 0, width: newWidth, height: newHeight)
+    UIGraphicsBeginImageContext(rect.size)
+    image.draw(in: rect)
+    let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+    UIGraphicsEndImageContext()
+
+    return resizedImage ?? image
+  }
+
+  private func copyExifInfo(from sourcePath: String, to data: Data, image: UIImage, isPNG: Bool) -> Data {
+    let url = URL(fileURLWithPath: sourcePath)
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let metadata = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+      return data
+    }
+
+    let dataProvider = CGDataProvider(data: data as CFData)
+    guard let dataProvider = dataProvider,
+          let dataSource = CGImageSourceCreateWithDataProvider(dataProvider, nil) else {
+      return data
+    }
+    var destMetadata = CGImageSourceCopyPropertiesAtIndex(dataSource, 0, nil) as? [CFString: Any] ?? [:]
+
+    // Copy metadata keys that don't exist in destination
+    for (key, value) in metadata {
+      if destMetadata[key] == nil {
+        destMetadata[key] = value
+      }
+    }
+
+    let outputFormat = isPNG ? kUTTypePNG : kUTTypeJPEG
+    let destData = NSMutableData()
+    guard let destination = CGImageDestinationCreateWithData(destData, outputFormat, 1, nil),
+          let cgImage = image.cgImage else {
+      return data
+    }
+
+    CGImageDestinationAddImage(destination, cgImage, destMetadata as CFDictionary)
+    CGImageDestinationFinalize(destination)
+    return destData as Data
   }
 }
 

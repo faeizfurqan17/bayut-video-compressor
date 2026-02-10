@@ -103,3 +103,44 @@ export interface VideoMetadata {
 export type BayutVideoCompressorModuleEvents = {
   onCompressProgress: (params: CompressionProgressPayload) => void;
 };
+
+/**
+ * Output image format.
+ */
+export type ImageOutputType = 'jpg' | 'png';
+
+/**
+ * Options for image compression.
+ */
+export interface ImageCompressOptions {
+  /**
+   * Maximum width boundary for the output image.
+   * Default: 1280
+   */
+  maxWidth?: number;
+
+  /**
+   * Maximum height boundary for the output image.
+   * Default: 1280
+   */
+  maxHeight?: number;
+
+  /**
+   * JPEG compression quality (0.0 - 1.0).
+   * Ignored when output is 'png'.
+   * Default: 0.8
+   */
+  quality?: number;
+
+  /**
+   * Output image format.
+   * Default: 'jpg'
+   */
+  output?: ImageOutputType;
+
+  /**
+   * Input type.
+   * Default: 'uri'
+   */
+  input?: 'uri' | 'base64';
+}
