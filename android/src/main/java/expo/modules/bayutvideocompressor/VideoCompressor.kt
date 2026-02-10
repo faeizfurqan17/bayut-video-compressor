@@ -113,7 +113,25 @@ class VideoCompressor(private val context: Context) {
 
         // Set up muxer
         val muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-        if (rotation != 0) muxer.setOrientationHint(rotation)
+        // NOTE: Do NOT set orientationHint here. The GL pipeline already applies
+        // rotation via SurfaceTexture.getTransformMatrix(), so the encoded frames
+        // are already in the correct orientation. Setting the hint would cause
+        // double rotation (e.g. portrait → landscape).
+
+        // Frame dropping: if source fps > 30, skip excess frames to save processing time
+        val TARGET_FPS = 30
+        val sourceFps = try {
+            inputFormat.getInteger(MediaFormat.KEY_FRAME_RATE)
+        } catch (e: Exception) { 0 }
+        val frameDropEnabled = sourceFps > TARGET_FPS
+        // Interval between target frames in microseconds (e.g. 33333us for 30fps)
+        val targetFrameIntervalUs = if (frameDropEnabled) 1_000_000L / TARGET_FPS else 0L
+        var nextTargetPtsUs = 0L
+        var droppedFrames = 0
+
+        if (frameDropEnabled) {
+            Log.i(TAG, "Frame dropping: ${sourceFps}fps → ${TARGET_FPS}fps (will skip ~${((1.0 - TARGET_FPS.toFloat()/sourceFps) * 100).toInt()}% of frames)")
+        }
 
         var videoMuxTrack = -1
         var audioMuxTrack = -1
@@ -125,6 +143,7 @@ class VideoCompressor(private val context: Context) {
         var outputDone = false
         var lastProgressPercent = -1
         var frameCount = 0
+        var renderedFrames = 0
 
         Log.i(TAG, "Starting transcode loop...")
 
@@ -157,22 +176,38 @@ class VideoCompressor(private val context: Context) {
                 val status = decoder.dequeueOutputBuffer(bufferInfo, 2_500)
                 when {
                     status >= 0 -> {
-                        val doRender = bufferInfo.size > 0
-                        decoder.releaseOutputBuffer(status, doRender)
+                        val isEos = bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+                        val hasContent = bufferInfo.size > 0
 
-                        if (doRender) {
+                        // Frame dropping: skip frames between target timestamps
+                        val shouldRender = if (frameDropEnabled && hasContent && !isEos) {
+                            if (bufferInfo.presentationTimeUs >= nextTargetPtsUs) {
+                                nextTargetPtsUs = bufferInfo.presentationTimeUs + targetFrameIntervalUs
+                                true
+                            } else {
+                                droppedFrames++
+                                false
+                            }
+                        } else {
+                            hasContent
+                        }
+
+                        decoder.releaseOutputBuffer(status, shouldRender)
+
+                        if (shouldRender) {
                             outputSurface.awaitNewImage()
                             outputSurface.drawImage()
                             outputSurface.setPresentationTime(bufferInfo.presentationTimeUs * 1000)
                             outputSurface.swapBuffers()
+                            renderedFrames++
                         }
 
-                        if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                        if (isEos) {
                             encoder.signalEndOfInputStream()
                             decoderDone = true
                         }
 
-                        if (duration > 0 && doRender) {
+                        if (duration > 0 && hasContent) {
                             val pct = ((bufferInfo.presentationTimeUs.toFloat() / (duration * 1000f)) * 100)
                                 .toInt().coerceIn(0, 100)
                             if (pct > lastProgressPercent) {
@@ -233,8 +268,9 @@ class VideoCompressor(private val context: Context) {
 
         listener?.onProgress(1.0f)
         val outKB = outputFile.length() / 1024
-        val fps = if (elapsed > 0) (frameCount / elapsed).toInt() else 0
-        Log.i(TAG, "Compression complete: ${outKB}KB in ${String.format("%.1f", elapsed)}s ($frameCount frames, $fps fps)")
+        val fps = if (elapsed > 0) (renderedFrames / elapsed).toInt() else 0
+        val dropInfo = if (droppedFrames > 0) ", dropped $droppedFrames" else ""
+        Log.i(TAG, "Compression complete: ${outKB}KB in ${String.format("%.1f", elapsed)}s ($renderedFrames rendered / $frameCount decoded, $fps fps$dropInfo)")
 
         return outputFile.absolutePath
     }
