@@ -177,10 +177,10 @@ class VideoCompressor(private val context: Context) {
                 when {
                     status >= 0 -> {
                         val isEos = bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
-                        val hasContent = bufferInfo.size > 0
 
                         // Frame dropping: skip frames between target timestamps
-                        val shouldRender = if (frameDropEnabled && hasContent && !isEos) {
+                        // Note: bufferInfo.size is 0 when decoding to a surface, so we check !isEos
+                        val shouldRender = if (frameDropEnabled && !isEos) {
                             if (bufferInfo.presentationTimeUs >= nextTargetPtsUs) {
                                 nextTargetPtsUs = bufferInfo.presentationTimeUs + targetFrameIntervalUs
                                 true
@@ -189,7 +189,7 @@ class VideoCompressor(private val context: Context) {
                                 false
                             }
                         } else {
-                            hasContent
+                            !isEos
                         }
 
                         decoder.releaseOutputBuffer(status, shouldRender)
@@ -207,7 +207,7 @@ class VideoCompressor(private val context: Context) {
                             decoderDone = true
                         }
 
-                        if (duration > 0 && hasContent) {
+                        if (duration > 0 && !isEos) {
                             val pct = ((bufferInfo.presentationTimeUs.toFloat() / (duration * 1000f)) * 100)
                                 .toInt().coerceIn(0, 100)
                             if (pct > lastProgressPercent) {

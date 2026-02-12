@@ -1,10 +1,8 @@
-import { NativeEventEmitter, type NativeEventSubscription } from 'react-native';
+import { type NativeEventSubscription } from 'react-native';
 import BayutVideoCompressorModule from './BayutVideoCompressorModule';
 import type { CompressOptions, CompressionProgressPayload, ImageCompressOptions } from './BayutVideoCompressor.types';
 
 export * from './BayutVideoCompressor.types';
-
-const EventEmitter = new NativeEventEmitter(BayutVideoCompressorModule as any);
 
 /**
  * Compress a video with hardware-accelerated encoding.
@@ -34,7 +32,7 @@ export async function compress(
     onProgress?: (progress: number) => void,
 ): Promise<string> {
     let subscription: NativeEventSubscription | undefined;
-    let uuid: string | undefined;
+    const uuid = options?.uuid || Math.random().toString(36).substring(7);
 
     try {
         const opts: CompressOptions = {
@@ -44,10 +42,11 @@ export async function compress(
             minimumFileSizeForCompress: 0,
             progressDivider: 0,
             ...options,
+            uuid,
         };
 
         if (onProgress) {
-            subscription = EventEmitter.addListener(
+            subscription = BayutVideoCompressorModule.addListener(
                 'onCompressProgress',
                 (event: CompressionProgressPayload) => {
                     if (event.uuid === uuid) {
@@ -58,15 +57,7 @@ export async function compress(
         }
 
         if (opts.getCancellationId) {
-            const originalCallback = opts.getCancellationId;
-            opts.getCancellationId = (id: string) => {
-                uuid = id;
-                originalCallback(id);
-            };
-        } else {
-            opts.getCancellationId = (id: string) => {
-                uuid = id;
-            };
+            opts.getCancellationId(uuid);
         }
 
         const result = await BayutVideoCompressorModule.compress(fileUrl, opts);
@@ -136,7 +127,7 @@ export function getMetadata(fileUrl: string) {
  */
 export async function activateBackgroundTask(onExpired?: () => void): Promise<string> {
     if (onExpired) {
-        const sub = EventEmitter.addListener('onBackgroundTaskExpired', () => {
+        const sub = BayutVideoCompressorModule.addListener('onBackgroundTaskExpired', () => {
             onExpired();
             sub.remove();
         });
@@ -148,6 +139,6 @@ export async function activateBackgroundTask(onExpired?: () => void): Promise<st
  * Deactivate the background task.
  */
 export function deactivateBackgroundTask(): Promise<void> {
-    EventEmitter.removeAllListeners('onBackgroundTaskExpired');
+    BayutVideoCompressorModule.removeAllListeners('onBackgroundTaskExpired');
     return BayutVideoCompressorModule.deactivateBackgroundTask();
 }

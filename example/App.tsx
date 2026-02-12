@@ -15,6 +15,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { compress, compressImage, cancel, getMetadata } from 'expo-image-and-video-compressor';
 import type { CompressOptions } from 'expo-image-and-video-compressor';
 import { Image } from 'react-native';
+import { requireNativeModule } from 'expo';
 
 type CompressionResult = {
   inputSize: string;
@@ -35,6 +36,7 @@ export default function App() {
   const [selectedSpeed, setSelectedSpeed] = useState<'ultrafast' | 'fast' | 'balanced'>('ultrafast');
   const [selectedMaxSize, setSelectedMaxSize] = useState(1080);
   const cancellationId = useRef<string | null>(null);
+  const [currentUuid, setCurrentUuid] = useState<string | null>(null);
   const [compressedUri, setCompressedUri] = useState<string | null>(null);
 
   // Image compression state
@@ -46,6 +48,21 @@ export default function App() {
   const player = useVideoPlayer(compressedUri ?? '', (p) => {
     p.loop = true;
   });
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+
+    try {
+      const expoGlobal = (global as any).expo;
+      const modules = expoGlobal?.modules ?? {};
+      console.log('Expo native modules keys:', Object.keys(modules));
+
+      const mod = requireNativeModule<any>('BayutVideoCompressor');
+      console.log('BayutVideoCompressor via requireNativeModule:', mod);
+    } catch (e) {
+      console.log('requireNativeModule BayutVideoCompressor failed with:', e);
+    }
+  }, []);
 
   const pickVideo = async () => {
     try {
@@ -97,6 +114,7 @@ export default function App() {
       speed: selectedSpeed,
       getCancellationId: (id) => {
         cancellationId.current = id;
+        setCurrentUuid(id);
       },
     };
 
@@ -108,6 +126,7 @@ export default function App() {
       const inputSize = inputMeta.size;
 
       const outputUri = await compress(selectedVideo, options, (p) => {
+        console.log(`Compression progress: ${Math.round(p * 100)}% (Session: ${cancellationId.current})`);
         setProgress(p);
       });
 
@@ -290,7 +309,10 @@ export default function App() {
         {compressing && (
           <View style={styles.progressCard}>
             <View style={styles.progressHeader}>
-              <Text style={styles.progressTitle}>Compressing...</Text>
+              <View>
+                <Text style={styles.progressTitle}>Compressing...</Text>
+                <Text style={{ color: '#8E8E93', fontSize: 10, marginTop: 2 }}>ID: {currentUuid}</Text>
+              </View>
               <TouchableOpacity onPress={cancelCompression}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>

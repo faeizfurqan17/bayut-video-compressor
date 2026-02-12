@@ -67,6 +67,12 @@ export interface CompressOptions {
    * Default: 0
    */
   progressDivider?: number;
+
+  /**
+   * Internal session ID for tracking and cancellation.
+   * If not provided, one will be generated.
+   */
+  uuid?: string;
 }
 
 /**
@@ -102,6 +108,7 @@ export interface VideoMetadata {
  */
 export type BayutVideoCompressorModuleEvents = {
   onCompressProgress: (params: CompressionProgressPayload) => void;
+  onBackgroundTaskExpired: () => void;
 };
 
 /**

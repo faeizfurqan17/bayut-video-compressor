@@ -16,7 +16,7 @@ public class BayutVideoCompressorModule: Module {
     // MARK: - Compress
 
     AsyncFunction("compress") { (fileUrl: String, options: [String: Any]) -> String in
-      let uuid = UUID().uuidString
+      let uuid = options["uuid"] as? String ?? UUID().uuidString
 
       // Send UUID back via options callback (handled in JS layer)
       // Emit it as part of progress events
@@ -354,7 +354,7 @@ public class BayutVideoCompressorModule: Module {
             let progress = Float(pts / totalDuration)
             let roundedProgress = Int(progress * 100)
 
-            if progressDivider == 0 || (roundedProgress % max(progressDivider, 1) == 0 && roundedProgress > lastReportedProgress) {
+            if roundedProgress > lastReportedProgress && (progressDivider == 0 || roundedProgress % max(progressDivider, 1) == 0) {
               lastReportedProgress = roundedProgress
               self.sendEvent("onCompressProgress", [
                 "progress": min(progress, 1.0),

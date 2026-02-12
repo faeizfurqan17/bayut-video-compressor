@@ -20,7 +20,7 @@ class BayutVideoCompressorModule : Module() {
         // MARK: - Compress
 
         AsyncFunction("compress") { fileUrl: String, options: Map<String, Any?> ->
-            val uuid = java.util.UUID.randomUUID().toString()
+            val uuid = options["uuid"] as? String ?: java.util.UUID.randomUUID().toString()
             val cancelled = AtomicBoolean(false)
             activeCompressions[uuid] = cancelled
 
