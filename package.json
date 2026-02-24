@@ -1,6 +1,6 @@
 {
   "name": "expo-image-and-video-compressor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Hardware-accelerated image & video compression for React Native / Expo. H.264 & HEVC encoding via MediaCodec and VideoToolbox. No FFmpeg, no config plugins — just install and compress.",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -70,7 +70,8 @@
   "files": [
     "build",
     "ios",
-    "android",
+    "android/build.gradle",
+    "android/src",
     "src",
     "expo-module.config.json",
     "README.md",

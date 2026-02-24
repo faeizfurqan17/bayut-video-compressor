@@ -22,7 +22,7 @@
 ## Table of Contents
 
 - [Why This Package?](#why-this-package)
-- [Upgrading to v1.0.0](#upgrading-to-v100)
+- [Upgrading to v1.0.1](#upgrading-to-v101)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
@@ -62,7 +62,7 @@ Most React Native compression libraries either depend on FFmpeg (adding ~9 MB to
 
 ---
 
-## Upgrading to v1.0.0
+## Upgrading to v1.0.1
 
 If you're on an older version (0.2.x or 0.3.x), upgrade to receive automatic compatible updates going forward:
 
@@ -70,7 +70,7 @@ If you're on an older version (0.2.x or 0.3.x), upgrade to receive automatic com
 npm install expo-image-and-video-compressor@latest
 ```
 
-> **Why upgrade?** Versions below 1.0.0 use `0.x` semver, which means `npm install` won't auto-update across minor versions (e.g. `^0.2.0` won't resolve to `0.3.x`). Starting from 1.0.0, `^1.0.0` will correctly receive all future compatible updates. The API is fully stable — no breaking changes from 0.3.1.
+> **Why upgrade?** Versions below 1.0.1 use `0.x` semver, which means `npm install` won't auto-update across minor versions (e.g. `^0.2.0` won't resolve to `0.3.x`). Starting from 1.0.1, `^1.0.1` will correctly receive all future compatible updates. The API is fully stable — no breaking changes from 0.3.1.
 
 ---
 
