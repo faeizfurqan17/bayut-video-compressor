@@ -23,6 +23,7 @@ public class BayutVideoCompressorModule: Module {
 
       let maxSize = options["maxSize"] as? Int ?? 1080
       let bitrate = options["bitrate"] as? Int ?? 0
+      let fps = options["fps"] as? Int ?? 0
       let codec = options["codec"] as? String ?? "h264"
       let speed = options["speed"] as? String ?? "ultrafast"
       let minimumFileSize = options["minimumFileSizeForCompress"] as? Double ?? 0
@@ -81,6 +82,7 @@ public class BayutVideoCompressorModule: Module {
         outputWidth: Int(outputWidth),
         outputHeight: Int(outputHeight),
         outputBitrate: outputBitrate,
+        fps: fps,
         codec: codec,
         speed: speed,
         uuid: uuid,
@@ -232,6 +234,7 @@ public class BayutVideoCompressorModule: Module {
     outputWidth: Int,
     outputHeight: Int,
     outputBitrate: Int,
+    fps: Int,
     codec: String,
     speed: String,
     uuid: String,
@@ -256,6 +259,11 @@ public class BayutVideoCompressorModule: Module {
       AVVideoAverageBitRateKey: outputBitrate,
       AVVideoProfileLevelKey: profileLevel,
     ]
+
+    if fps > 0 {
+      compressionProps[AVVideoExpectedSourceFrameRateKey] = fps
+      compressionProps[AVVideoMaxKeyFrameIntervalKey] = fps
+    }
 
     // Speed optimizations
     if speed == "ultrafast" {
