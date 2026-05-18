@@ -45,7 +45,7 @@ public class BayutVideoCompressorModule: Module {
         throw CompressorError.invalidVideo("No video track found")
       }
 
-      let naturalSize = videoTrack.naturalSize.applying(videoTrack.preferredTransform)
+      let naturalSize = videoTrack.naturalSize
       let sourceWidth = abs(naturalSize.width)
       let sourceHeight = abs(naturalSize.height)
       let sourceBitrate = videoTrack.estimatedDataRate
