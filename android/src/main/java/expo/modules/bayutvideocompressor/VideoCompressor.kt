@@ -25,6 +25,7 @@ class VideoCompressor(private val context: Context) {
     data class CompressConfig(
         val maxSize: Int = 1080,
         val bitrate: Int = 0,
+        val fps: Int = 0,
         val codec: String = "h264",
         val speed: String = "ultrafast",
     )
@@ -81,12 +82,23 @@ class VideoCompressor(private val context: Context) {
         val videoTrackIndex = findTrack(extractor, true)
         if (videoTrackIndex < 0) throw IllegalStateException("No video track found")
         val audioTrackIndex = findTrack(extractor, false)
+        extractor.selectTrack(videoTrackIndex)
+        val inputFormat = extractor.getTrackFormat(videoTrackIndex)
+        val sourceFps = try {
+            inputFormat.getInteger(MediaFormat.KEY_FRAME_RATE)
+        } catch (e: Exception) { 0 }
+        val targetFps = when {
+            config.fps > 0 -> config.fps
+            sourceFps > 0 -> sourceFps
+            else -> 30
+        }
+        Log.i(TAG, "Target fps: $targetFps${if (sourceFps > 0) " (source: $sourceFps)" else ""}")
 
         // Set up encoder
         val outputFormat = MediaFormat.createVideoFormat(mimeType, outputWidth, outputHeight).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, outputBitrate)
-            setInteger(MediaFormat.KEY_FRAME_RATE, 30)
+            setInteger(MediaFormat.KEY_FRAME_RATE, targetFps)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL)
             setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -103,8 +115,6 @@ class VideoCompressor(private val context: Context) {
 
         // GL pipeline: decoder → SurfaceTexture → GL → eglPresentationTimeANDROID → encoder
         // Required for correct timestamps and bitrate control
-        extractor.selectTrack(videoTrackIndex)
-        val inputFormat = extractor.getTrackFormat(videoTrackIndex)
         val decoder = MediaCodec.createDecoderByType(inputFormat.getString(MediaFormat.KEY_MIME)!!)
 
         val outputSurface = OutputSurface(encoderInputSurface, outputWidth, outputHeight)
@@ -118,19 +128,15 @@ class VideoCompressor(private val context: Context) {
         // are already in the correct orientation. Setting the hint would cause
         // double rotation (e.g. portrait → landscape).
 
-        // Frame dropping: if source fps > 30, skip excess frames to save processing time
-        val TARGET_FPS = 30
-        val sourceFps = try {
-            inputFormat.getInteger(MediaFormat.KEY_FRAME_RATE)
-        } catch (e: Exception) { 0 }
-        val frameDropEnabled = sourceFps > TARGET_FPS
-        // Interval between target frames in microseconds (e.g. 33333us for 30fps)
-        val targetFrameIntervalUs = if (frameDropEnabled) 1_000_000L / TARGET_FPS else 0L
+        // Frame dropping: if source fps > target fps, skip excess frames.
+        val frameDropEnabled = sourceFps > 0 && targetFps > 0 && sourceFps > targetFps
+        // Interval between target frames in microseconds.
+        val targetFrameIntervalUs = if (frameDropEnabled) 1_000_000L / targetFps else 0L
         var nextTargetPtsUs = 0L
         var droppedFrames = 0
 
         if (frameDropEnabled) {
-            Log.i(TAG, "Frame dropping: ${sourceFps}fps → ${TARGET_FPS}fps (will skip ~${((1.0 - TARGET_FPS.toFloat()/sourceFps) * 100).toInt()}% of frames)")
+            Log.i(TAG, "Frame dropping: ${sourceFps}fps → ${targetFps}fps (will skip ~${((1.0 - targetFps.toFloat()/sourceFps) * 100).toInt()}% of frames)")
         }
 
         var videoMuxTrack = -1

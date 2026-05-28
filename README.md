@@ -105,6 +105,7 @@ import { compress } from 'expo-image-and-video-compressor';
 const result = await compress(videoUri, {
   bitrate: 2_500_000,   // 2.5 Mbps
   maxSize: 1080,         // Scale down to 1080p
+  fps: 24,               // Optional: cap output framerate
   codec: 'h264',         // or 'hevc' for ~40% smaller output
   speed: 'ultrafast',    // Fastest encoding
 }, (progress) => {
@@ -193,6 +194,7 @@ Compresses a video file using the device's hardware encoder.
 |--------|------|---------|-------------|
 | `bitrate` | `number` | Auto | Target bitrate in bits per second. Auto-calculated from resolution when omitted. |
 | `maxSize` | `number` | `1080` | Maximum output dimension (width or height) in pixels. Aspect ratio is preserved. |
+| `fps` | `number` | Source fps | Target output framerate. When omitted, the source framerate is preserved when available. |
 | `codec` | `'h264' \| 'hevc'` | `'h264'` | Output video codec. HEVC produces ~40% smaller files but requires iOS 11+ / Android 5+. |
 | `speed` | `'ultrafast' \| 'fast' \| 'balanced'` | `'ultrafast'` | Encoding speed preset. Faster = larger file, slower = better compression ratio. |
 | `minimumFileSizeForCompress` | `number` | `0` | Skip compression if the source file is smaller than this value (in bytes). |

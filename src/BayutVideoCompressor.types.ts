@@ -43,6 +43,13 @@ export interface CompressOptions {
   codec?: CompressionCodec;
 
   /**
+   * Target output framerate (frames per second).
+   * When omitted, the compressor keeps the source framerate when available.
+   * Example: 24, 30, 60
+   */
+  fps?: number;
+
+  /**
    * Compression speed preset.
    * Default: 'ultrafast'
    */
